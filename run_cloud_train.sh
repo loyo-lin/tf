@@ -2,7 +2,11 @@
 set -Eeuo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXPORT_ROOT="${EXPORT_ROOT:-/root/autodl-tmp/tf_exports}"
+DEFAULT_EXPORT_ROOT="/root/autodl-tmp/tf_exports"
+if [ -d /root/gpufree-data ]; then
+  DEFAULT_EXPORT_ROOT="/root/gpufree-data/tf_exports"
+fi
+EXPORT_ROOT="${EXPORT_ROOT:-$DEFAULT_EXPORT_ROOT}"
 RUN_NAME="${RUN_NAME:-$(date +%Y%m%d_%H%M%S)}"
 EXPORT_DIR="${EXPORT_ROOT}/${RUN_NAME}"
 LOG_FILE="${EXPORT_DIR}/train.log"
