@@ -1,0 +1,13 @@
+.idea/
+__pycache__/
+*.py[cod]
+
+runs/
+weights/
+
+.env
+.venv/
+venv/
+env/
+
+*.log
