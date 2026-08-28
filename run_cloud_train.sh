@@ -59,8 +59,12 @@ shutdown_instance() {
   ) &
 }
 
-if [ "$INSTALL_DEPS" = "1" ] && [ -f requirements.txt ]; then
-  python -m pip install -r requirements.txt
+if [ "$INSTALL_DEPS" = "1" ]; then
+  if [ -d wheelhouse ] && [ -f requirements_cloud.txt ]; then
+    python -m pip install --no-index --find-links wheelhouse -r requirements_cloud.txt
+  elif [ -f requirements.txt ]; then
+    python -m pip install -r requirements.txt
+  fi
 fi
 
 mkdir -p weights runs

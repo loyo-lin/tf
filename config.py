@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 def get_config():
@@ -9,6 +10,7 @@ def get_config():
         "d_model":512,
         "dataset_name":"Helsinki-NLP/opus-100",
         "dataset_config":"en-zh",
+        "dataset_disk_path":os.environ.get("DATASET_DISK_PATH"),
         "lang_src":"zh",
         "lang_tgt":"en",
         "model_folder":"weights",

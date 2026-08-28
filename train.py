@@ -8,7 +8,7 @@ from config import get_config,get_weights_file_path
 from dataset import Bilingualdataset
 from model import build_transformer
 
-from datasets import load_dataset
+from datasets import load_dataset,load_from_disk
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
@@ -42,7 +42,11 @@ def is_valid_length(item,tokenizer_src,tokenizer_tgt,config):
     return len(src_ids)<=config['seq_len']-2 and len(tgt_ids)<=config['seq_len']-1
 
 def get_ds(config):
-    ds_raw=load_dataset(config['dataset_name'],config['dataset_config'],split='train')
+    dataset_disk_path=config.get('dataset_disk_path')
+    if dataset_disk_path and Path(dataset_disk_path).exists():
+        ds_raw=load_from_disk(dataset_disk_path)
+    else:
+        ds_raw=load_dataset(config['dataset_name'],config['dataset_config'],split='train')
 
     tokenizer_src=get_or_build_tokenizer(config,ds_raw,config['lang_src'])
     tokenizer_tgt=get_or_build_tokenizer(config,ds_raw,config['lang_tgt'])
