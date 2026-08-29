@@ -1,5 +1,0 @@
-datasets
-tokenizers
-tqdm
-tensorboard
-matplotlib

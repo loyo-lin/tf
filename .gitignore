@@ -4,6 +4,10 @@ __pycache__/
 
 runs/
 weights/
+tf_upload.zip
+wheelhouse/
+dataset_cache/
+tf_exports/
 
 .env
 .venv/
