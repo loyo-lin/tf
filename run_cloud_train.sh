@@ -84,13 +84,12 @@ shutdown_instance() {
 
   echo "Training script finished. The server will shut down in 20 seconds."
   sync
-  (
-    sleep 20
-    if command -v autodl >/dev/null 2>&1; then
-      autodl shutdown >/dev/null 2>&1 || true
-    fi
-    shutdown -h now >/dev/null 2>&1 || poweroff >/dev/null 2>&1 || halt >/dev/null 2>&1 || true
-  ) &
+  sleep 20
+  if command -v autodl >/dev/null 2>&1; then
+    autodl shutdown >/dev/null 2>&1 || true
+  fi
+  shutdown -h now >/dev/null 2>&1 || poweroff >/dev/null 2>&1 || halt >/dev/null 2>&1 || true
+  echo "Shutdown command returned. If the instance is still running, stop it from the platform page."
 }
 
 if [ "$INSTALL_DEPS" = "1" ]; then
