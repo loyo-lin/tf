@@ -23,10 +23,25 @@ from tqdm import tqdm
 from pathlib import Path
 
 def get_all_sentences(ds,lang):
+    """逐条产出指定语言的句子，供 tokenizer 训练词表。
+
+    用法：
+        tokenizer.train_from_iterator(get_all_sentences(ds, "zh"), trainer=trainer)
+
+    ds 是 HuggingFace 数据集，lang 是 "zh" 或 "en"。
+    """
     for item in ds:
         yield item['translation'][lang]
 
 def get_or_build_tokenizer(config,ds,lang):
+    """读取已有 tokenizer；如果不存在，就从训练数据中构建并保存。
+
+    用法：
+        tokenizer_zh = get_or_build_tokenizer(config, ds_raw, "zh")
+
+    中文使用逐字 Split，英文使用 Whitespace。生成文件名由
+    config["tokenizer_file"] 控制，例如 tokenizer_zh.json。
+    """
     tokenizer_path=Path(config['tokenizer_file'].format(lang))
     if not Path.exists(tokenizer_path):
         tokenizer=Tokenizer(WordLevel(unk_token='[UNK]'))
@@ -39,11 +54,26 @@ def get_or_build_tokenizer(config,ds,lang):
     return tokenizer
 
 def is_valid_length(item,tokenizer_src,tokenizer_tgt,config):
+    """判断一条样本是否能放进 seq_len。
+
+    用法：
+        ds_raw.filter(lambda item: is_valid_length(item, tokenizer_src, tokenizer_tgt, config))
+
+    源语言需要预留 [SOS] 和 [EOS] 两个位置；目标语言训练标签需要预留 [EOS]。
+    """
     src_ids=tokenizer_src.encode(item['translation'][config['lang_src']]).ids
     tgt_ids=tokenizer_tgt.encode(item['translation'][config['lang_tgt']]).ids
     return len(src_ids)<=config['seq_len']-2 and len(tgt_ids)<=config['seq_len']-1
 
 def get_ds(config):
+    """加载数据集、构建 tokenizer，并返回训练/验证 DataLoader。
+
+    用法：
+        train_loader, valid_loader, tokenizer_src, tokenizer_tgt = get_ds(config)
+
+    默认从 HuggingFace 下载 Helsinki-NLP/opus-100 的 en-zh 子集。
+    如果设置 DATASET_DISK_PATH 且路径存在，则从本地 load_from_disk 读取。
+    """
     dataset_disk_path=config.get('dataset_disk_path')
     if dataset_disk_path and Path(dataset_disk_path).exists():
         ds_raw=load_from_disk(dataset_disk_path)
@@ -70,10 +100,26 @@ def get_ds(config):
     return train_dataloader,valid_dataloader,tokenizer_src,tokenizer_tgt
 
 def get_model(config,vocab_src_len,vocab_tgt_len):
+    """根据词表大小和配置创建 Transformer 模型。
+
+    用法：
+        model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
+
+    模型结构定义在 model.py 的 build_transformer。
+    """
     model=build_transformer(vocab_src_len,vocab_tgt_len,config['seq_len'],config['seq_len'],config['d_model'])
     return model
 
 def save_checkpoint(config,epoch,model,optimizer,global_step,epoch_name,epoch_completed):
+    """保存训练 checkpoint。
+
+    用法：
+        save_checkpoint(config, epoch, model, optimizer, global_step, "04", True)
+        save_checkpoint(config, epoch, model, optimizer, global_step, "latest", False)
+
+    checkpoint 包含模型参数、优化器状态、当前 epoch、global_step。
+    先写入 .tmp 再替换正式文件，降低中途断电时写坏 checkpoint 的风险。
+    """
     model_filename=get_weights_file_path(config,epoch_name)
     tmp_model_filename=f'{model_filename}.tmp'
     Path(model_filename).parent.mkdir(parents=True, exist_ok=True)
@@ -88,12 +134,30 @@ def save_checkpoint(config,epoch,model,optimizer,global_step,epoch_name,epoch_co
     print(f'Saved checkpoint: {model_filename}', flush=True)
 
 def format_duration(seconds):
+    """把秒数格式化成 HH:MM:SS，主要用于进度日志。"""
     seconds=int(seconds)
     hours, seconds=divmod(seconds,3600)
     minutes, seconds=divmod(seconds,60)
     return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
 
 def train_model(config):
+    """执行完整训练流程。
+
+    用法：
+        config = get_config()
+        train_model(config)
+
+    流程：
+        1. 选择 cuda/cpu
+        2. 加载数据和 tokenizer
+        3. 创建模型、优化器、TensorBoard writer
+        4. 如果 PRELOAD 有值，则恢复 checkpoint
+        5. 按 epoch 训练并定期保存 latest checkpoint
+        6. 每个 epoch 结束保存 tmodel_XX.pt
+
+    云端常用：
+        BATCH_SIZE=32 NUM_EPOCHS=5 PRELOAD=latest python train.py
+    """
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'device={device}')
 
@@ -121,6 +185,7 @@ def train_model(config):
     loss_fn=nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id('[PAD]'),label_smoothing=0.1).to(device)
 
     def handle_stop(signum, frame):
+        """把系统停止信号转换成 KeyboardInterrupt，方便保存 latest checkpoint。"""
         raise KeyboardInterrupt(f'Received signal {signum}')
 
     signal.signal(signal.SIGTERM, handle_stop)

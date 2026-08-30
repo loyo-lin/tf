@@ -10,6 +10,15 @@ from model import build_transformer
 
 
 def find_checkpoint(run_dir: Path, checkpoint: str | None) -> Path:
+    """在训练导出目录中查找要加载的 checkpoint。
+
+    用法：
+        find_checkpoint(run_dir, "04")      -> weights/tmodel_04.pt
+        find_checkpoint(run_dir, "latest")  -> weights/tmodel_latest.pt
+        find_checkpoint(run_dir, "path/to/file.pt")
+
+    如果 checkpoint 为 None，则优先返回编号最大的 tmodel_XX.pt。
+    """
     weights_dir = run_dir / "weights"
     if checkpoint:
         path = Path(checkpoint)
@@ -36,6 +45,13 @@ def find_checkpoint(run_dir: Path, checkpoint: str | None) -> Path:
 
 
 def load_tokenizers(run_dir: Path) -> tuple[Tokenizer, Tokenizer]:
+    """从训练导出目录读取中英文 tokenizer。
+
+    用法：
+        tokenizer_src, tokenizer_tgt = load_tokenizers(Path("trained_models/run"))
+
+    推理不需要 HuggingFace 数据集，只需要 tokenizer_zh.json 和 tokenizer_en.json。
+    """
     src_path = run_dir / "tokenizer_zh.json"
     tgt_path = run_dir / "tokenizer_en.json"
     if not src_path.exists() or not tgt_path.exists():
@@ -44,6 +60,13 @@ def load_tokenizers(run_dir: Path) -> tuple[Tokenizer, Tokenizer]:
 
 
 def make_source_tensor(text: str, tokenizer_src: Tokenizer, seq_len: int, device: torch.device):
+    """把用户输入的中文句子编码成 encoder 输入张量和 mask。
+
+    用法：
+        source, source_mask = make_source_tensor("你好", tokenizer_src, 256, device)
+
+    会自动添加 [SOS]/[EOS]，并补 [PAD] 到 seq_len。
+    """
     sos_id = tokenizer_src.token_to_id("[SOS]")
     eos_id = tokenizer_src.token_to_id("[EOS]")
     pad_id = tokenizer_src.token_to_id("[PAD]")
@@ -66,6 +89,13 @@ def make_source_tensor(text: str, tokenizer_src: Tokenizer, seq_len: int, device
 
 
 def decode_ids(tokenizer: Tokenizer, ids: list[int]) -> str:
+    """把模型生成的 token id 转回文本，并去掉特殊 token。
+
+    用法：
+        text = decode_ids(tokenizer_tgt, predicted_ids)
+
+    会过滤 [SOS]、[EOS]、[PAD]。
+    """
     special_ids = {
         tokenizer.token_to_id("[SOS]"),
         tokenizer.token_to_id("[EOS]"),
@@ -77,6 +107,13 @@ def decode_ids(tokenizer: Tokenizer, ids: list[int]) -> str:
 
 @torch.no_grad()
 def translate(model, tokenizer_src, tokenizer_tgt, text: str, seq_len: int, device: torch.device) -> str:
+    """把一条中文文本翻译成英文。
+
+    用法：
+        english = translate(model, tokenizer_src, tokenizer_tgt, "你好，世界。", 256, device)
+
+    使用贪心解码：每一步都选择当前概率最高的 token。
+    """
     source, source_mask = make_source_tensor(text, tokenizer_src, seq_len, device)
     sos_id = tokenizer_tgt.token_to_id("[SOS]")
     eos_id = tokenizer_tgt.token_to_id("[EOS]")
@@ -103,6 +140,16 @@ def translate(model, tokenizer_src, tokenizer_tgt, text: str, seq_len: int, devi
 
 
 def main():
+    """命令行入口：加载本地模型并进行单句或交互式翻译。
+
+    单句用法：
+        python translate.py --run-dir trained_models/jupyter-xxx --checkpoint 04 --text "你好"
+
+    交互用法：
+        python translate.py --run-dir trained_models/jupyter-xxx --checkpoint 04
+
+    --device 可以指定 cuda 或 cpu。
+    """
     parser = argparse.ArgumentParser(description="Translate Chinese text with a trained checkpoint.")
     parser.add_argument("--run-dir", default="trained_models/jupyter-iz8apfja-5g1b3hr1")
     parser.add_argument("--checkpoint", default=None, help="Path, filename, or epoch id such as 04/latest.")

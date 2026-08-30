@@ -5,7 +5,19 @@ from torch.utils.data import Dataset
 
 
 class Bilingualdataset(Dataset):
+    """把 HuggingFace 双语样本转换成 Transformer 训练用张量。
+
+    用法：
+        train_ds = Bilingualdataset(ds, tokenizer_src, tokenizer_tgt, "zh", "en", 256)
+
+    输入样本格式需要包含：
+        item["translation"]["zh"]  中文原文
+        item["translation"]["en"]  英文目标句
+
+    __getitem__ 会返回 encoder_input、decoder_input、mask、label 和原始文本。
+    """
     def __init__(self,ds,tokenizer_src,tokenizer_tgt,src_lang,tgt_lang,seq_len)->None:
+        """保存数据集、分词器、语言代码、最大序列长度和特殊 token id。"""
         super().__init__()
 
         self.ds=ds
@@ -23,9 +35,23 @@ class Bilingualdataset(Dataset):
         self.tgt_pad_token_id=tokenizer_tgt.token_to_id('[PAD]')
 
     def __len__(self):
+        """返回样本数量，供 DataLoader 计算总 batch 数。"""
         return len(self.ds)
 
     def __getitem__(self, index):
+        """取一条双语样本，并组装成模型训练需要的输入。
+
+        encoder_input:
+            [SOS] + 源语言 token + [EOS] + [PAD]...
+
+        decoder_input:
+            [SOS] + 目标语言 token + [PAD]...
+
+        label:
+            目标语言 token + [EOS] + [PAD]...
+
+        encoder_mask 用于屏蔽源句 padding；decoder_mask 同时屏蔽 padding 和未来 token。
+        """
         src_target_pair=self.ds[index]
         src_text=src_target_pair['translation'][self.src_lang]
         tgt_text=src_target_pair['translation'][self.tgt_lang]
@@ -79,5 +105,12 @@ class Bilingualdataset(Dataset):
         }
 
 def causal_mask(size):
+    """生成 decoder 自注意力的因果 mask，防止模型偷看未来 token。
+
+    用法：
+        mask = causal_mask(decoder_input.size(0))
+
+    返回形状为 (1, size, size) 的布尔矩阵，下三角为 True，上三角为 False。
+    """
     mask=torch.triu(torch.ones(1,size,size),diagonal=1).type(torch.int)
     return mask==0

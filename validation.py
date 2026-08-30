@@ -12,11 +12,25 @@ from train import get_ds,get_model
 
 
 def latest_checkpoint(model_folder):
+    """返回模型目录中按文件名排序后的最新 checkpoint。
+
+    用法：
+        weights_path = latest_checkpoint("weights")
+
+    如果目录里没有 .pt 文件，返回 None。
+    """
     weights = sorted(Path(model_folder).glob('*.pt'))
     return weights[-1] if weights else None
 
 
 def load_model(config,tokenizer_src,tokenizer_tgt,device,weights_path):
+    """创建模型并加载 checkpoint 参数。
+
+    用法：
+        model = load_model(config, tokenizer_src, tokenizer_tgt, device, "weights/tmodel_04.pt")
+
+    tokenizer 用于确定源语言和目标语言词表大小；weights_path 指向训练好的 .pt 文件。
+    """
     model = get_model(config,tokenizer_src.get_vocab_size(),tokenizer_tgt.get_vocab_size()).to(device)
     state = torch.load(weights_path,map_location=device)
     model.load_state_dict(state['model_state_dict'])
@@ -25,6 +39,13 @@ def load_model(config,tokenizer_src,tokenizer_tgt,device,weights_path):
 
 
 def greedy_decode(model,source,source_mask,tokenizer_tgt,max_len,device):
+    """用贪心解码生成翻译结果。
+
+    用法：
+        predicted_ids = greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, 256, device)
+
+    每一步选择概率最高的下一个 token，直到生成 [EOS] 或达到 max_len。
+    """
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
     pad_idx = tokenizer_tgt.token_to_id('[PAD]')
@@ -51,6 +72,17 @@ def greedy_decode(model,source,source_mask,tokenizer_tgt,max_len,device):
 
 
 def run_validation(model,validation_dataloader,tokenizer_tgt,device,max_len,max_batches,num_examples):
+    """在验证集上计算 loss/perplexity，并抽样打印翻译结果。
+
+    用法：
+        avg_loss, ppl, examples = run_validation(model, valid_loader, tokenizer_tgt, device, 256, 100, 5)
+
+    max_batches 控制最多验证多少个 batch；num_examples 控制返回多少条翻译示例。
+    返回值：
+        avg_loss 是按非 PAD token 平均后的交叉熵。
+        ppl 是 perplexity，等于 exp(avg_loss)。
+        examples 是 (source, expected, predicted) 列表。
+    """
     pad_idx = tokenizer_tgt.token_to_id('[PAD]')
     loss_fn = nn.CrossEntropyLoss(ignore_index=pad_idx,reduction='sum')
 
@@ -97,6 +129,15 @@ def run_validation(model,validation_dataloader,tokenizer_tgt,device,max_len,max_
 
 
 def main():
+    """命令行入口：加载数据、加载 checkpoint，然后执行验证。
+
+    用法：
+        python validation.py --weights weights/tmodel_04.pt --max-batches 100 --num-examples 5
+
+    常用参数：
+        --weights 指定 checkpoint；不指定时从 MODEL_FOLDER 中找最新 .pt。
+        --device 可指定 cuda 或 cpu。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights',type=str,default=None)
     parser.add_argument('--max-batches',type=int,default=100)

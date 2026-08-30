@@ -10,11 +10,25 @@ from train import get_ds,get_model
 
 
 def latest_checkpoint(model_folder):
+    """返回模型目录中按文件名排序后的最新 checkpoint。
+
+    用法：
+        weights_path = latest_checkpoint("weights")
+
+    如果没有 .pt 文件，返回 None。
+    """
     weights = sorted(Path(model_folder).glob('*.pt'))
     return weights[-1] if weights else None
 
 
 def ids_to_tokens(tokenizer,ids,pad_id):
+    """把 token id 列表转换成 token 字符串列表，并在遇到 PAD 后停止。
+
+    用法：
+        tokens = ids_to_tokens(tokenizer_src, encoder_input_ids, pad_id)
+
+    可视化注意力时，x/y 轴标签就是这些 token。
+    """
     tokens = []
     for token_id in ids:
         if token_id == pad_id:
@@ -24,6 +38,13 @@ def ids_to_tokens(tokenizer,ids,pad_id):
 
 
 def load_model(config,tokenizer_src,tokenizer_tgt,device,weights_path):
+    """创建模型并加载训练好的 checkpoint。
+
+    用法：
+        model = load_model(config, tokenizer_src, tokenizer_tgt, device, "weights/tmodel_04.pt")
+
+    加载后会切到 eval 模式，适合推理和注意力可视化。
+    """
     model = get_model(config,tokenizer_src.get_vocab_size(),tokenizer_tgt.get_vocab_size()).to(device)
     state = torch.load(weights_path,map_location=device)
     model.load_state_dict(state['model_state_dict'])
@@ -32,6 +53,13 @@ def load_model(config,tokenizer_src,tokenizer_tgt,device,weights_path):
 
 
 def greedy_decode(model,source,source_mask,tokenizer_tgt,max_len,device):
+    """用贪心解码生成目标序列，并让模型保留最后一次注意力分数。
+
+    用法：
+        decoder_input = greedy_decode(model, source, source_mask, tokenizer_tgt, 256, device)
+
+    mode=greedy 时使用它，适合观察模型自己生成译文时的注意力。
+    """
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
     pad_idx = tokenizer_tgt.token_to_id('[PAD]')
@@ -61,6 +89,13 @@ def greedy_decode(model,source,source_mask,tokenizer_tgt,max_len,device):
 
 
 def save_heatmap(matrix,x_tokens,y_tokens,title,path):
+    """把注意力矩阵保存成热力图图片。
+
+    用法：
+        save_heatmap(attention, src_tokens, tgt_tokens, "decoder cross-attention", out_path)
+
+    x_tokens 会显示在横轴，y_tokens 会显示在纵轴。
+    """
     plt.rcParams['font.sans-serif'] = ['Microsoft YaHei','SimHei','Arial Unicode MS','DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
 
@@ -80,6 +115,17 @@ def save_heatmap(matrix,x_tokens,y_tokens,title,path):
 
 
 def main():
+    """命令行入口：加载模型、取一条验证样本并输出注意力图。
+
+    用法：
+        python attention_visualization.py --weights weights/tmodel_04.pt --index 0 --mode greedy
+
+    常用参数：
+        --index 选择第几条验证样本。
+        --layer 选择 decoder 第几层，默认 -1 表示最后一层。
+        --head 选择注意力头编号。
+        --mode teacher 使用标准答案作为 decoder 输入，greedy 使用模型自己生成的译文。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights',type=str,default=None)
     parser.add_argument('--index',type=int,default=0)
