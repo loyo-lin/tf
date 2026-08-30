@@ -5,9 +5,11 @@ __pycache__/
 runs/
 weights/
 tf_upload.zip
+*.tar.gz
 wheelhouse/
 dataset_cache/
 tf_exports/
+trained_models/
 
 .env
 .venv/
